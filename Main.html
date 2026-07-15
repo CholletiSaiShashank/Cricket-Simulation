@@ -1,0 +1,1169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Match Engine — Custom T20 Scorecard Calculator</title>
+<style>
+  :root{
+    --pitch-navy: #0b1f3a;
+    --pitch-navy-deep: #071528;
+    --field-blue: #123a63;
+    --line-blue: #2f6fb0;
+    --accent-sky: #4fb0ff;
+    --accent-gold: #e8b93f;
+    --paper: #f3f7fc;
+    --ink: #0b1f3a;
+    --ink-soft: #4b6079;
+    --win-green: #1f9d63;
+    --danger: #e05252;
+    --font-display: 'Rockwell', 'Roboto Slab', Georgia, serif;
+    --font-body: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    --font-mono: 'Courier New', Courier, monospace;
+  }
+
+  *{ box-sizing:border-box; }
+
+  body{
+    margin:0;
+    font-family:var(--font-body);
+    background:
+      radial-gradient(circle at 50% -10%, rgba(79,176,255,0.18), transparent 45%),
+      var(--pitch-navy-deep);
+    color:var(--paper);
+    min-height:100vh;
+    padding-bottom:60px;
+  }
+
+  header.hero{
+    text-align:center;
+    padding:40px 20px 26px;
+    border-bottom:2px solid var(--line-blue);
+    background:
+      linear-gradient(180deg, rgba(18,58,99,0.6), transparent);
+    position:relative;
+  }
+  header.hero::before{
+    content:"";
+    position:absolute;
+    left:50%;
+    bottom:-2px;
+    transform:translateX(-50%);
+    width:120px;
+    height:4px;
+    background:var(--accent-gold);
+    border-radius:4px;
+  }
+  header.hero h1{
+    font-family:var(--font-display);
+    font-size:clamp(28px,5vw,46px);
+    letter-spacing:1px;
+    margin:0 0 8px;
+    color:#fff;
+  }
+  header.hero p{
+    margin:0;
+    color:var(--accent-sky);
+    font-size:14px;
+    letter-spacing:3px;
+    text-transform:uppercase;
+  }
+
+  /* NAV */
+  nav.top-nav{
+    display:flex;
+    justify-content:center;
+    gap:10px;
+    padding:16px 20px;
+    background:rgba(7,21,40,0.7);
+    border-bottom:1px solid var(--line-blue);
+    flex-wrap:wrap;
+  }
+  nav.top-nav button{
+    background:transparent;
+    border:1px solid var(--line-blue);
+    color:var(--paper);
+    padding:10px 22px;
+    border-radius:24px;
+    font-size:14px;
+    font-weight:700;
+    letter-spacing:0.5px;
+    cursor:pointer;
+    transition:all 0.15s ease;
+  }
+  nav.top-nav button:hover{
+    border-color:var(--accent-sky);
+    color:var(--accent-sky);
+  }
+  nav.top-nav button.active-nav{
+    background:var(--accent-gold);
+    border-color:var(--accent-gold);
+    color:var(--pitch-navy-deep);
+  }
+
+  main{
+    max-width:1200px;
+    margin:0 auto;
+    padding:36px 20px;
+  }
+
+  .page{ display:none; }
+  .page.active{ display:block; }
+
+  .teams-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:28px;
+  }
+  @media (max-width:860px){
+    .teams-grid{ grid-template-columns:1fr; }
+  }
+
+  .team-card{
+    background:linear-gradient(160deg, var(--field-blue), var(--pitch-navy));
+    border:1px solid var(--line-blue);
+    border-radius:14px;
+    padding:24px;
+    box-shadow:0 12px 30px rgba(0,0,0,0.35);
+  }
+
+  .team-card h2{
+    font-family:var(--font-display);
+    font-size:22px;
+    margin:0 0 4px;
+    color:var(--accent-gold);
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .team-card h2 .tag{
+    font-size:11px;
+    background:var(--accent-sky);
+    color:var(--pitch-navy-deep);
+    padding:2px 8px;
+    border-radius:20px;
+    letter-spacing:1px;
+    font-family:var(--font-body);
+    font-weight:700;
+  }
+
+  .section-label{
+    font-size:12px;
+    letter-spacing:2px;
+    text-transform:uppercase;
+    color:var(--accent-sky);
+    margin:20px 0 10px;
+    padding-bottom:6px;
+    border-bottom:1px dashed rgba(79,176,255,0.35);
+  }
+
+  .player-row{
+    display:grid;
+    grid-template-columns:24px 1fr;
+    gap:10px;
+    align-items:start;
+    margin-bottom:12px;
+    background:rgba(255,255,255,0.03);
+    border:1px solid rgba(255,255,255,0.06);
+    border-radius:10px;
+    padding:10px 12px;
+  }
+  .player-row.duplicate-error{
+    border-color:var(--danger);
+    box-shadow:0 0 0 1px var(--danger);
+  }
+  .player-row .num{
+    font-family:var(--font-mono);
+    color:var(--accent-gold);
+    font-weight:700;
+    padding-top:8px;
+  }
+  .player-row .role{
+    font-size:11px;
+    letter-spacing:1px;
+    text-transform:uppercase;
+    color:#8fb0cf;
+    margin-bottom:6px;
+  }
+  label.tiny{
+    font-size:11px;
+    color:#9fb8d1;
+  }
+  input[type="text"], input[type="number"], select{
+    background:var(--paper);
+    color:var(--ink);
+    border:1px solid var(--line-blue);
+    border-radius:6px;
+    padding:8px 10px;
+    font-size:14px;
+    font-family:var(--font-body);
+    width:100%;
+  }
+  input:disabled, select:disabled{
+    background:#dbe4ee;
+    color:#8595a8;
+    cursor:not-allowed;
+  }
+  input:focus, select:focus{
+    outline:2px solid var(--accent-sky);
+    outline-offset:1px;
+  }
+  input.invalid, select.invalid{
+    outline:2px solid var(--danger);
+    outline-offset:1px;
+  }
+
+  .power-preview{
+    font-family:var(--font-mono);
+    font-size:13px;
+    color:var(--accent-gold);
+    padding-top:6px;
+  }
+  .power-preview span{ color:#9fb8d1; font-family:var(--font-body); }
+
+  .controls{
+    text-align:center;
+    margin:36px 0 8px;
+    display:flex;
+    justify-content:center;
+    gap:16px;
+    flex-wrap:wrap;
+  }
+  button.action-btn{
+    font-family:var(--font-body);
+    font-weight:700;
+    letter-spacing:0.5px;
+    font-size:15px;
+    padding:14px 30px;
+    border-radius:8px;
+    border:none;
+    cursor:pointer;
+    transition:transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  button.action-btn:hover{ transform:translateY(-2px); }
+  button:focus-visible{ outline:3px solid var(--accent-sky); outline-offset:2px; }
+
+  #generateBtn{
+    background:var(--accent-gold);
+    color:var(--pitch-navy-deep);
+    box-shadow:0 8px 20px rgba(232,185,63,0.25);
+  }
+  #resetBtn{
+    background:transparent;
+    color:var(--accent-sky);
+    border:1px solid var(--accent-sky);
+  }
+
+  .error-banner{
+    max-width:700px;
+    margin:0 auto 20px;
+    background:rgba(224,82,82,0.15);
+    border:1px solid var(--danger);
+    color:#ffd4d4;
+    padding:12px 18px;
+    border-radius:8px;
+    text-align:center;
+    font-size:14px;
+    display:none;
+  }
+
+  #result{
+    margin-top:40px;
+    display:none;
+  }
+
+  .scoreboard{
+    background:var(--pitch-navy-deep);
+    border:2px solid var(--accent-gold);
+    border-radius:14px;
+    padding:0;
+    overflow:hidden;
+    margin-bottom:24px;
+  }
+  .scoreboard-header{
+    background:linear-gradient(90deg, var(--field-blue), var(--pitch-navy));
+    padding:16px 24px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    border-bottom:1px solid var(--line-blue);
+    flex-wrap:wrap;
+    gap:8px;
+  }
+  .scoreboard-header h3{
+    font-family:var(--font-display);
+    margin:0;
+    font-size:20px;
+    color:#fff;
+  }
+  .scoreboard-header .total{
+    font-family:var(--font-mono);
+    font-size:26px;
+    color:var(--accent-gold);
+    font-weight:700;
+  }
+
+  table.card-table{
+    width:100%;
+    border-collapse:collapse;
+  }
+  table.card-table th{
+    text-align:left;
+    font-size:11px;
+    letter-spacing:1px;
+    text-transform:uppercase;
+    color:var(--accent-sky);
+    padding:10px 24px 6px;
+    border-bottom:1px solid rgba(255,255,255,0.08);
+  }
+  table.card-table td{
+    padding:10px 24px;
+    font-size:14px;
+    border-bottom:1px solid rgba(255,255,255,0.05);
+    color:var(--paper);
+  }
+  table.card-table td.score{
+    font-family:var(--font-mono);
+    text-align:right;
+    color:var(--accent-gold);
+    font-weight:700;
+  }
+  table.card-table tbody tr:hover{
+    background:rgba(79,176,255,0.06);
+  }
+  .subhead-row td{
+    padding-top:18px;
+    padding-bottom:2px;
+    font-size:12px;
+    letter-spacing:2px;
+    text-transform:uppercase;
+    color:#8fb0cf;
+    border-bottom:none;
+  }
+
+  .winner-banner{
+    text-align:center;
+    padding:26px;
+    border-radius:14px;
+    background:linear-gradient(120deg, var(--win-green), #0d6e42);
+    border:2px solid var(--accent-gold);
+    box-shadow:0 10px 30px rgba(31,157,99,0.3);
+  }
+  .winner-banner h2{
+    font-family:var(--font-display);
+    margin:0 0 6px;
+    font-size:28px;
+    color:#fff;
+  }
+  .winner-banner p{
+    margin:0;
+    font-family:var(--font-mono);
+    font-size:16px;
+    color:#e8ffe8;
+  }
+
+  footer{
+    text-align:center;
+    color:#5c7999;
+    font-size:12px;
+    margin-top:50px;
+  }
+
+  /* PLAYER DATABASE PAGE */
+  .db-layout{
+    display:grid;
+    grid-template-columns:340px 1fr;
+    gap:28px;
+    align-items:start;
+  }
+  @media (max-width:860px){
+    .db-layout{ grid-template-columns:1fr; }
+  }
+
+  .db-form-card{
+    background:linear-gradient(160deg, var(--field-blue), var(--pitch-navy));
+    border:1px solid var(--line-blue);
+    border-radius:14px;
+    padding:24px;
+    box-shadow:0 12px 30px rgba(0,0,0,0.35);
+    position:sticky;
+    top:20px;
+  }
+  .db-form-card h2{
+    font-family:var(--font-display);
+    font-size:20px;
+    margin:0 0 18px;
+    color:var(--accent-gold);
+  }
+  .db-form-card .field-group{ margin-bottom:14px; display:flex; flex-direction:column; gap:4px; }
+  #dbFormFields label.tiny{ margin-bottom:4px; display:block; }
+  .db-form-actions{
+    display:flex;
+    gap:10px;
+    margin-top:8px;
+  }
+  #dbSubmitBtn{
+    background:var(--accent-gold);
+    color:var(--pitch-navy-deep);
+    flex:1;
+  }
+  #dbCancelEditBtn{
+    background:transparent;
+    border:1px solid var(--accent-sky);
+    color:var(--accent-sky);
+    display:none;
+  }
+
+  .db-table-card{
+    background:var(--pitch-navy-deep);
+    border:1px solid var(--line-blue);
+    border-radius:14px;
+    overflow:hidden;
+  }
+  .db-table-card table{
+    width:100%;
+    border-collapse:collapse;
+  }
+  .db-table-card th{
+    text-align:left;
+    font-size:11px;
+    letter-spacing:1px;
+    text-transform:uppercase;
+    color:var(--accent-sky);
+    padding:14px 18px;
+    border-bottom:1px solid var(--line-blue);
+    background:rgba(18,58,99,0.4);
+  }
+  .db-table-card td{
+    padding:12px 18px;
+    font-size:14px;
+    border-bottom:1px solid rgba(255,255,255,0.05);
+  }
+  .db-table-card tr:hover td{
+    background:rgba(79,176,255,0.05);
+  }
+  .type-pill{
+    font-size:11px;
+    padding:3px 10px;
+    border-radius:20px;
+    font-weight:700;
+    letter-spacing:0.5px;
+  }
+  .type-pill.Batsman{ background:rgba(79,176,255,0.2); color:var(--accent-sky); }
+  .type-pill.Bowler{ background:rgba(232,185,63,0.2); color:var(--accent-gold); }
+  .type-pill.All-rounder{ background:rgba(31,157,99,0.25); color:#4fdb98; }
+
+  .row-actions{ display:flex; gap:8px; }
+  .row-actions button{
+    font-size:12px;
+    padding:6px 12px;
+    border-radius:6px;
+    border:1px solid var(--line-blue);
+    background:transparent;
+    color:var(--paper);
+    cursor:pointer;
+  }
+  .row-actions button.edit-btn:hover{ color:var(--accent-sky); border-color:var(--accent-sky); }
+  .row-actions button.delete-btn:hover{ color:var(--danger); border-color:var(--danger); }
+
+  .empty-state{
+    padding:40px 20px;
+    text-align:center;
+    color:#8fb0cf;
+    font-size:14px;
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <h1>Match Engine</h1>
+  <p>Custom T20 Scorecard Calculator</p>
+</header>
+
+<nav class="top-nav">
+  <button id="navDatabase" class="active-nav">Player Database</button>
+  <button id="navEngine">Match Engine</button>
+</nav>
+
+<main>
+
+  <!-- ================= PAGE: PLAYER DATABASE ================= -->
+  <section class="page active" id="page-database">
+    <div class="db-layout">
+      <div class="db-form-card">
+        <h2 id="dbFormTitle">Add Player</h2>
+        <input type="hidden" id="dbEditId">
+
+        <div id="dbFormFields">
+          <div class="field-group">
+            <label class="tiny">Player Name</label>
+            <input type="text" id="dbName" placeholder="e.g. Virat">
+          </div>
+
+          <div class="field-group">
+            <label class="tiny">Player Type</label>
+            <select id="dbType">
+              <option value="Batsman">Batsman</option>
+              <option value="All-rounder">All-rounder</option>
+              <option value="Bowler">Bowler</option>
+            </select>
+          </div>
+
+          <div class="field-group">
+            <label class="tiny">Bat Power</label>
+            <input type="number" step="any" id="dbBatPower" placeholder="e.g. 85">
+          </div>
+
+          <div class="field-group">
+            <label class="tiny">Bowl Power</label>
+            <input type="number" step="any" id="dbBowlPower" placeholder="e.g. 30">
+          </div>
+        </div>
+
+        <div class="db-form-actions">
+          <button class="action-btn" id="dbSubmitBtn">Add Player</button>
+          <button class="action-btn" id="dbCancelEditBtn">Cancel</button>
+        </div>
+      </div>
+
+      <div class="db-table-card">
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Bat Power</th>
+              <th>Bowl Power</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="dbTableBody"></tbody>
+        </table>
+        <div class="empty-state" id="dbEmptyState" style="display:none;">No players yet. Add your first player using the form.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= PAGE: MATCH ENGINE ================= -->
+  <section class="page" id="page-engine">
+
+    <div class="error-banner" id="errorBanner">Please resolve the highlighted selections before generating the scorecard.</div>
+
+    <div class="teams-grid">
+      <!-- TEAM A -->
+      <section class="team-card" id="teamACard">
+        <h2>Team A <span class="tag">Squad</span></h2>
+
+        <div class="section-label">Batting Order</div>
+        <div class="player-row" data-slot="a1">
+          <div class="num">1</div>
+          <div>
+            <div class="role">Batsman 1</div>
+            <select class="player-select" data-role="Batsman"></select>
+            <div class="power-preview"><span>Bat:</span> <span class="bat-val">—</span></div>
+          </div>
+        </div>
+        <div class="player-row" data-slot="a2">
+          <div class="num">2</div>
+          <div>
+            <div class="role">Batsman 2</div>
+            <select class="player-select" data-role="Batsman"></select>
+            <div class="power-preview"><span>Bat:</span> <span class="bat-val">—</span></div>
+          </div>
+        </div>
+        <div class="player-row" data-slot="a3">
+          <div class="num">3</div>
+          <div>
+            <div class="role">Batsman 3</div>
+            <select class="player-select" data-role="Batsman"></select>
+            <div class="power-preview"><span>Bat:</span> <span class="bat-val">—</span></div>
+          </div>
+        </div>
+        <div class="player-row" data-slot="a4">
+          <div class="num">4</div>
+          <div>
+            <div class="role">Batsman 4</div>
+            <select class="player-select" data-role="Batsman"></select>
+            <div class="power-preview"><span>Bat:</span> <span class="bat-val">—</span></div>
+          </div>
+        </div>
+        <div class="player-row" data-slot="a5">
+          <div class="num">5</div>
+          <div>
+            <div class="role">All-rounder</div>
+            <select class="player-select" data-role="All-rounder"></select>
+            <div class="power-preview"><span>Bat:</span> <span class="bat-val">—</span> &nbsp; <span>Bowl:</span> <span class="bowl-val">—</span></div>
+          </div>
+        </div>
+
+        <div class="section-label">Bowling Attack</div>
+        <div class="player-row" data-slot="a6">
+          <div class="num">6</div>
+          <div>
+            <div class="role">Bowler 1</div>
+            <select class="player-select" data-role="Bowler"></select>
+            <div class="power-preview"><span>Bowl:</span> <span class="bowl-val">—</span></div>
+          </div>
+        </div>
+        <div class="player-row" data-slot="a7">
+          <div class="num">7</div>
+          <div>
+            <div class="role">Bowler 2</div>
+            <select class="player-select" data-role="Bowler"></select>
+            <div class="power-preview"><span>Bowl:</span> <span class="bowl-val">—</span></div>
+          </div>
+        </div>
+        <div class="player-row" data-slot="a8">
+          <div class="num">8</div>
+          <div>
+            <div class="role">Bowler 3</div>
+            <select class="player-select" data-role="Bowler"></select>
+            <div class="power-preview"><span>Bowl:</span> <span class="bowl-val">—</span></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TEAM B -->
+      <section class="team-card" id="teamBCard">
+        <h2>Team B <span class="tag">Squad</span></h2>
+
+        <div class="section-label">Batting Order</div>
+        <div class="player-row" data-slot="b1">
+          <div class="num">1</div>
+          <div>
+            <div class="role">Batsman 1</div>
+            <select class="player-select" data-role="Batsman"></select>
+            <div class="power-preview"><span>Bat:</span> <span class="bat-val">—</span></div>
+          </div>
+        </div>
+        <div class="player-row" data-slot="b2">
+          <div class="num">2</div>
+          <div>
+            <div class="role">Batsman 2</div>
+            <select class="player-select" data-role="Batsman"></select>
+            <div class="power-preview"><span>Bat:</span> <span class="bat-val">—</span></div>
+          </div>
+        </div>
+        <div class="player-row" data-slot="b3">
+          <div class="num">3</div>
+          <div>
+            <div class="role">Batsman 3</div>
+            <select class="player-select" data-role="Batsman"></select>
+            <div class="power-preview"><span>Bat:</span> <span class="bat-val">—</span></div>
+          </div>
+        </div>
+        <div class="player-row" data-slot="b4">
+          <div class="num">4</div>
+          <div>
+            <div class="role">Batsman 4</div>
+            <select class="player-select" data-role="Batsman"></select>
+            <div class="power-preview"><span>Bat:</span> <span class="bat-val">—</span></div>
+          </div>
+        </div>
+        <div class="player-row" data-slot="b5">
+          <div class="num">5</div>
+          <div>
+            <div class="role">All-rounder</div>
+            <select class="player-select" data-role="All-rounder"></select>
+            <div class="power-preview"><span>Bat:</span> <span class="bat-val">—</span> &nbsp; <span>Bowl:</span> <span class="bowl-val">—</span></div>
+          </div>
+        </div>
+
+        <div class="section-label">Bowling Attack</div>
+        <div class="player-row" data-slot="b6">
+          <div class="num">6</div>
+          <div>
+            <div class="role">Bowler 1</div>
+            <select class="player-select" data-role="Bowler"></select>
+            <div class="power-preview"><span>Bowl:</span> <span class="bowl-val">—</span></div>
+          </div>
+        </div>
+        <div class="player-row" data-slot="b7">
+          <div class="num">7</div>
+          <div>
+            <div class="role">Bowler 2</div>
+            <select class="player-select" data-role="Bowler"></select>
+            <div class="power-preview"><span>Bowl:</span> <span class="bowl-val">—</span></div>
+          </div>
+        </div>
+        <div class="player-row" data-slot="b8">
+          <div class="num">8</div>
+          <div>
+            <div class="role">Bowler 3</div>
+            <select class="player-select" data-role="Bowler"></select>
+            <div class="power-preview"><span>Bowl:</span> <span class="bowl-val">—</span></div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="controls">
+      <button class="action-btn" id="generateBtn">Generate Scorecard</button>
+      <button class="action-btn" id="resetBtn">Reset</button>
+    </div>
+
+    <div id="result">
+      <div class="scoreboard" id="scoreboardA"></div>
+      <div class="scoreboard" id="scoreboardB"></div>
+      <div class="winner-banner" id="winnerBanner"></div>
+    </div>
+  </section>
+
+</main>
+
+<footer>All figures are derived from user-entered ratings and carry no real-world statistical meaning.</footer>
+
+<script>
+(function(){
+
+  /* ============================================================
+     SHARED STATE / STORAGE
+  ============================================================ */
+  const STORAGE_KEY = 'cricketPlayerDatabase';
+
+  function loadPlayers(){
+    try{
+      const raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : [];
+    }catch(e){
+      return [];
+    }
+  }
+
+  function savePlayers(list){
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+  }
+
+  function uid(){
+    return 'p_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8);
+  }
+
+  let players = loadPlayers();
+
+  /* ============================================================
+     NAVIGATION
+  ============================================================ */
+  const navDatabase = document.getElementById('navDatabase');
+  const navEngine = document.getElementById('navEngine');
+  const pageDatabase = document.getElementById('page-database');
+  const pageEngine = document.getElementById('page-engine');
+
+  function showPage(name){
+    if(name === 'database'){
+      pageDatabase.classList.add('active');
+      pageEngine.classList.remove('active');
+      navDatabase.classList.add('active-nav');
+      navEngine.classList.remove('active-nav');
+    } else {
+      pageEngine.classList.add('active');
+      pageDatabase.classList.remove('active');
+      navEngine.classList.add('active-nav');
+      navDatabase.classList.remove('active-nav');
+      populateAllDropdowns(); // refresh in case database changed
+    }
+  }
+
+  navDatabase.addEventListener('click', () => showPage('database'));
+  navEngine.addEventListener('click', () => showPage('engine'));
+
+  /* ============================================================
+     PLAYER DATABASE PAGE
+  ============================================================ */
+  const dbFormTitle = document.getElementById('dbFormTitle');
+  const dbEditId = document.getElementById('dbEditId');
+  const dbName = document.getElementById('dbName');
+  const dbType = document.getElementById('dbType');
+  const dbBatPower = document.getElementById('dbBatPower');
+  const dbBowlPower = document.getElementById('dbBowlPower');
+  const dbSubmitBtn = document.getElementById('dbSubmitBtn');
+  const dbCancelEditBtn = document.getElementById('dbCancelEditBtn');
+  const dbTableBody = document.getElementById('dbTableBody');
+  const dbEmptyState = document.getElementById('dbEmptyState');
+
+  function updateDbFieldAvailability(){
+    const type = dbType.value;
+    if(type === 'Batsman'){
+      dbBatPower.disabled = false;
+      dbBowlPower.disabled = true;
+      dbBowlPower.value = '0';
+    } else if(type === 'Bowler'){
+      dbBatPower.disabled = true;
+      dbBatPower.value = '0';
+      dbBowlPower.disabled = false;
+    } else { // All-rounder
+      dbBatPower.disabled = false;
+      dbBowlPower.disabled = false;
+    }
+  }
+  dbType.addEventListener('change', updateDbFieldAvailability);
+  updateDbFieldAvailability();
+
+  function clearDbForm(){
+    dbEditId.value = '';
+    dbName.value = '';
+    dbType.value = 'Batsman';
+    dbBatPower.value = '';
+    dbBowlPower.value = '';
+    updateDbFieldAvailability();
+    dbFormTitle.textContent = 'Add Player';
+    dbSubmitBtn.textContent = 'Add Player';
+    dbCancelEditBtn.style.display = 'none';
+    [dbName, dbType, dbBatPower, dbBowlPower].forEach(el => el.classList.remove('invalid'));
+  }
+
+  function renderPlayerTable(){
+    if(players.length === 0){
+      dbTableBody.innerHTML = '';
+      dbEmptyState.style.display = 'block';
+      return;
+    }
+    dbEmptyState.style.display = 'none';
+
+    dbTableBody.innerHTML = players.map(p => `
+      <tr>
+        <td>${escapeHtml(p.name)}</td>
+        <td><span class="type-pill ${p.type}">${p.type}</span></td>
+        <td>${p.type === 'Bowler' ? '—' : round2(p.batPower).toFixed(2)}</td>
+        <td>${p.type === 'Batsman' ? '—' : round2(p.bowlPower).toFixed(2)}</td>
+        <td class="row-actions">
+          <button class="edit-btn" data-id="${p.id}">Edit</button>
+          <button class="delete-btn" data-id="${p.id}">Delete</button>
+        </td>
+      </tr>
+    `).join('');
+
+    dbTableBody.querySelectorAll('.edit-btn').forEach(btn => {
+      btn.addEventListener('click', () => startEditPlayer(btn.dataset.id));
+    });
+    dbTableBody.querySelectorAll('.delete-btn').forEach(btn => {
+      btn.addEventListener('click', () => deletePlayer(btn.dataset.id));
+    });
+  }
+
+  function startEditPlayer(id){
+    const p = players.find(pl => pl.id === id);
+    if(!p) return;
+    dbEditId.value = p.id;
+    dbName.value = p.name;
+    dbType.value = p.type;
+    updateDbFieldAvailability();
+    dbBatPower.value = p.type === 'Bowler' ? '0' : p.batPower;
+    dbBowlPower.value = p.type === 'Batsman' ? '0' : p.bowlPower;
+    dbFormTitle.textContent = 'Edit Player';
+    dbSubmitBtn.textContent = 'Save Changes';
+    dbCancelEditBtn.style.display = 'inline-block';
+    dbName.scrollIntoView({behavior:'smooth', block:'center'});
+  }
+
+  function deletePlayer(id){
+    players = players.filter(p => p.id !== id);
+    savePlayers(players);
+    renderPlayerTable();
+    populateAllDropdowns();
+    if(dbEditId.value === id){
+      clearDbForm();
+    }
+  }
+
+  dbCancelEditBtn.addEventListener('click', clearDbForm);
+
+  dbSubmitBtn.addEventListener('click', function(){
+    [dbName, dbType, dbBatPower, dbBowlPower].forEach(el => el.classList.remove('invalid'));
+
+    const name = dbName.value.trim();
+    const type = dbType.value;
+    let invalid = false;
+
+    if(!name){ dbName.classList.add('invalid'); invalid = true; }
+
+    let batPower = 0, bowlPower = 0;
+
+    if(type === 'Batsman'){
+      batPower = parseFloat(dbBatPower.value);
+      if(dbBatPower.value.trim()==='' || isNaN(batPower)){ dbBatPower.classList.add('invalid'); invalid = true; }
+      bowlPower = 0;
+    } else if(type === 'Bowler'){
+      bowlPower = parseFloat(dbBowlPower.value);
+      if(dbBowlPower.value.trim()==='' || isNaN(bowlPower)){ dbBowlPower.classList.add('invalid'); invalid = true; }
+      batPower = 0;
+    } else { // All-rounder
+      batPower = parseFloat(dbBatPower.value);
+      bowlPower = parseFloat(dbBowlPower.value);
+      if(dbBatPower.value.trim()==='' || isNaN(batPower)){ dbBatPower.classList.add('invalid'); invalid = true; }
+      if(dbBowlPower.value.trim()==='' || isNaN(bowlPower)){ dbBowlPower.classList.add('invalid'); invalid = true; }
+    }
+
+    if(invalid) return;
+
+    const editId = dbEditId.value;
+    if(editId){
+      const p = players.find(pl => pl.id === editId);
+      if(p){
+        p.name = name;
+        p.type = type;
+        p.batPower = batPower;
+        p.bowlPower = bowlPower;
+      }
+    } else {
+      players.push({ id: uid(), name, type, batPower, bowlPower });
+    }
+
+    savePlayers(players);
+    renderPlayerTable();
+    populateAllDropdowns();
+    clearDbForm();
+  });
+
+  /* ============================================================
+     MATCH ENGINE PAGE
+  ============================================================ */
+  const errorBanner = document.getElementById('errorBanner');
+  const resultBox = document.getElementById('result');
+
+  function populateAllDropdowns(){
+    document.querySelectorAll('.player-select').forEach(select => {
+      const role = select.dataset.role;
+      const previousValue = select.value;
+      const options = players.filter(p => p.type === role);
+
+      select.innerHTML = '<option value="">— Select ' + role + ' —</option>' +
+        options.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
+
+      // Restore previous selection if the player still exists in this role list
+      if(previousValue && options.some(p => p.id === previousValue)){
+        select.value = previousValue;
+      }
+      updatePowerPreview(select);
+    });
+  }
+
+  function updatePowerPreview(select){
+    const row = select.closest('.player-row');
+    const player = players.find(p => p.id === select.value);
+    const batValEl = row.querySelector('.bat-val');
+    const bowlValEl = row.querySelector('.bowl-val');
+    if(player){
+      if(batValEl) batValEl.textContent = (player.type === 'Bowler') ? '—' : round2(player.batPower).toFixed(2);
+      if(bowlValEl) bowlValEl.textContent = (player.type === 'Batsman') ? '—' : round2(player.bowlPower).toFixed(2);
+    } else {
+      if(batValEl) batValEl.textContent = '—';
+      if(bowlValEl) bowlValEl.textContent = '—';
+    }
+  }
+
+  document.querySelectorAll('.player-select').forEach(select => {
+    select.addEventListener('change', function(){
+      updatePowerPreview(select);
+    });
+  });
+
+  function clearInvalidStyles(){
+    document.querySelectorAll('.player-select.invalid').forEach(el => el.classList.remove('invalid'));
+    document.querySelectorAll('.player-row.duplicate-error').forEach(el => el.classList.remove('duplicate-error'));
+  }
+
+  function collectTeam(prefix){
+    const slots = [];
+    for(let i=1;i<=8;i++){
+      slots.push(document.querySelector(`[data-slot="${prefix}${i}"]`));
+    }
+
+    const data = {
+      batNames: [],
+      batValues: [],
+      bowlNames: [],
+      bowlValues: []
+    };
+
+    let valid = true;
+    const invalidSelects = [];
+    const selectedIds = [];
+
+    slots.forEach(row => {
+      const select = row.querySelector('.player-select');
+      if(!select.value){
+        invalidSelects.push(select);
+        valid = false;
+      } else {
+        selectedIds.push({ select, id: select.value, row });
+      }
+    });
+
+    // Duplicate check within this team
+    const seen = new Map();
+    selectedIds.forEach(entry => {
+      if(seen.has(entry.id)){
+        invalidSelects.push(entry.select);
+        invalidSelects.push(seen.get(entry.id));
+        valid = false;
+      } else {
+        seen.set(entry.id, entry.select);
+      }
+    });
+
+    if(!valid){
+      return { valid, invalidSelects, data: null };
+    }
+
+    // Batsmen 1-4
+    for(let i=0;i<4;i++){
+      const select = slots[i].querySelector('.player-select');
+      const player = players.find(p => p.id === select.value);
+      data.batNames.push(player.name);
+      data.batValues.push(player.batPower);
+    }
+
+    // All-rounder (slot index 4)
+    {
+      const select = slots[4].querySelector('.player-select');
+      const player = players.find(p => p.id === select.value);
+      data.batNames.push(player.name);
+      data.batValues.push(player.batPower);
+      data.bowlNames.push(player.name);
+      data.bowlValues.push(player.bowlPower);
+    }
+
+    // Bowlers 1-3 (slot index 5,6,7)
+    for(let i=5;i<8;i++){
+      const select = slots[i].querySelector('.player-select');
+      const player = players.find(p => p.id === select.value);
+      data.bowlNames.push(player.name);
+      data.bowlValues.push(player.bowlPower);
+    }
+
+    return { valid: true, invalidSelects: [], data };
+  }
+
+  function round2(n){
+    return Math.round((n + Number.EPSILON) * 100) / 100;
+  }
+
+  function buildScoreboardHTML(teamLabel, teamScore, batNames, adjustedBat, bowlNames, bowlScores){
+    let rows = '';
+    rows += `<tr class="subhead-row"><td colspan="2">Batting</td></tr>`;
+    rows += `<tr><th>Player</th><th style="text-align:right;">Adjusted Score</th></tr>`;
+    for(let i=0;i<batNames.length;i++){
+      rows += `<tr><td>${escapeHtml(batNames[i])}</td><td class="score">${round2(adjustedBat[i]).toFixed(2)}</td></tr>`;
+    }
+    rows += `<tr class="subhead-row"><td colspan="2">Bowling</td></tr>`;
+    rows += `<tr><th>Player</th><th style="text-align:right;">Bowling Score</th></tr>`;
+    for(let i=0;i<bowlNames.length;i++){
+      rows += `<tr><td>${escapeHtml(bowlNames[i])}</td><td class="score">${round2(bowlScores[i]).toFixed(2)}</td></tr>`;
+    }
+
+    return `
+      <div class="scoreboard-header">
+        <h3>${teamLabel}</h3>
+        <div class="total">${round2(teamScore).toFixed(2)}</div>
+      </div>
+      <table class="card-table">
+        <tbody>
+          ${rows}
+        </tbody>
+      </table>
+    `;
+  }
+
+  function escapeHtml(str){
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  document.getElementById('generateBtn').addEventListener('click', function(){
+    clearInvalidStyles();
+    errorBanner.style.display = 'none';
+
+    const teamA = collectTeam('a');
+    const teamB = collectTeam('b');
+
+    if(!teamA.valid || !teamB.valid){
+      teamA.invalidSelects.forEach(el => { el.classList.add('invalid'); el.closest('.player-row').classList.add('duplicate-error'); });
+      teamB.invalidSelects.forEach(el => { el.classList.add('invalid'); el.closest('.player-row').classList.add('duplicate-error'); });
+      errorBanner.style.display = 'block';
+      resultBox.style.display = 'none';
+      errorBanner.scrollIntoView({behavior:'smooth', block:'center'});
+      return;
+    }
+
+    const bat1 = teamA.data.batValues;   // 5 values
+    const bat2 = teamB.data.batValues;   // 5 values
+    const bowl1 = teamA.data.bowlValues; // 4 values
+    const bowl2 = teamB.data.bowlValues; // 4 values
+
+    // Exact same math as the original Java program — UNCHANGED
+    const bowl1power = (bowl1[0]+bowl1[1]+bowl1[2]+bowl1[3])/4.0;
+    const bowl2power = (bowl2[0]+bowl2[1]+bowl2[2]+bowl2[3])/4.0;
+    const bowl1measure = (1/bowl1[0] + 1/bowl1[1] + 1/bowl1[2] + 1/bowl1[3]);
+    const bowl2measure = (1/bowl2[0] + 1/bowl2[1] + 1/bowl2[2] + 1/bowl2[3]);
+
+    const adjustedBat1 = [];
+    let team1 = 0.0;
+    for(let i=0;i<5;i++){
+      const v = (bat1[i]/bowl2power)*10.0;
+      adjustedBat1.push(v);
+      team1 += v;
+    }
+
+    const adjustedBat2 = [];
+    let team2 = 0.0;
+    for(let i=0;i<5;i++){
+      const v = (bat2[i]/bowl1power)*10.0;
+      adjustedBat2.push(v);
+      team2 += v;
+    }
+
+    const bowlScore1 = [];
+    for(let i=0;i<4;i++){
+      bowlScore1.push(team2/(bowl1[i]*bowl1measure));
+    }
+
+    const bowlScore2 = [];
+    for(let i=0;i<4;i++){
+      bowlScore2.push(team1/(bowl2[i]*bowl2measure));
+    }
+
+    // Render — UNCHANGED
+    document.getElementById('scoreboardA').innerHTML = buildScoreboardHTML(
+      'Team A', team1, teamA.data.batNames, adjustedBat1, teamA.data.bowlNames, bowlScore1
+    );
+    document.getElementById('scoreboardB').innerHTML = buildScoreboardHTML(
+      'Team B', team2, teamB.data.batNames, adjustedBat2, teamB.data.bowlNames, bowlScore2
+    );
+
+    const winnerBanner = document.getElementById('winnerBanner');
+    const diff = Math.abs(team1 - team2);
+    if(team1 > team2){
+      winnerBanner.innerHTML = `<h2>Team A Wins</h2><p>Winning margin: ${round2(diff).toFixed(2)} points</p>`;
+    } else if(team2 > team1){
+      winnerBanner.innerHTML = `<h2>Team B Wins</h2><p>Winning margin: ${round2(diff).toFixed(2)} points</p>`;
+    } else {
+      winnerBanner.innerHTML = `<h2>Match Tied</h2><p>Both teams scored ${round2(team1).toFixed(2)} points</p>`;
+    }
+
+    resultBox.style.display = 'block';
+    resultBox.scrollIntoView({behavior:'smooth', block:'start'});
+  });
+
+  document.getElementById('resetBtn').addEventListener('click', function(){
+    document.querySelectorAll('.player-select').forEach(el => {
+      el.value = '';
+      el.classList.remove('invalid');
+      updatePowerPreview(el);
+    });
+    document.querySelectorAll('.player-row').forEach(el => el.classList.remove('duplicate-error'));
+    errorBanner.style.display = 'none';
+    resultBox.style.display = 'none';
+  });
+
+  /* ============================================================
+     INIT
+  ============================================================ */
+  renderPlayerTable();
+  populateAllDropdowns();
+})();
+</script>
+
+</body>
+</html>
